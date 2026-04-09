@@ -90,7 +90,7 @@ Thầy cô Khoa CNTT luôn sẵn sàng hỗ trợ em!"""
         time.sleep(3)
 
         # Không tìm thấy tài khoản
-        not_found_msgs = ["chưa đăng ký", "Không tìm thấy", "không cho phép"]
+        not_found_msgs = ["chưa đăng ký", "Không tìm thấy", "không cho phép","không hợp lệ"]
         for msg in not_found_msgs:
             if driver.find_elements(By.XPATH, f"//*[contains(text(), '{msg}')]"):
                 pyautogui.press('esc')
