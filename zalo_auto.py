@@ -1,3 +1,4 @@
+import os
 import time
 import random
 import openpyxl
@@ -11,11 +12,10 @@ from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
-from openpyxl.styles import PatternFill
 
-# Cấu hình file
-EXCEL_PATH = r'C:\Users\keke\Downloads\telesale\test.xlsx'
+# cấu hình màu
+VANG_FILL = openpyxl.styles.PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+DO_FILL = openpyxl.styles.PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
 
 MESSAGE_TEMPLATE = """Chào em, Thầy đến từ Khoa Công nghệ Thông tin – Trường Đại học Nguyễn Tất Thành đây 🤝
 
@@ -28,168 +28,154 @@ Thầy cô nhắn để hỗ trợ em tư vấn chọn ngành học phù hợp h
 5. Đã đăng ký / đang làm hồ sơ
 6. Phụ huynh muốn cùng trao đổi
 7. Chưa quan tâm / đã chọn trường khác
-8. Khác: (nội dung em muốn chia sẻ, ví dụ: học phí, chương trình học, cơ hội việc làm, môi trường học tập hay ngành nào phù hợp với em.)
+8. Khác: (nội dung em muốn chia sẻ)
 
-Thầy cô Khoa Công nghệ Thông tin – ĐH Nguyễn Tất Thành luôn sẵn sàng hỗ trợ và đồng hành cùng em!
-Mong nhận được câu trả lời sớm từ em nhé!"""
+Thầy cô Khoa CNTT luôn sẵn sàng hỗ trợ em!"""
 
+def setup_profile():  #Tự động tạo và trả về đường dẫn thư mục Profile ngay tại nơi đặt code
 
-vang_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid") 
-do_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")   
-
-print("-" * 30)
-try:
-    start_stt = int(input("Nhập STT bắt đầu (Cột A): "))
-    end_stt = int(input("Nhập STT kết thúc (Cột A): "))
-except ValueError:
-    print("Vui lòng chỉ nhập số nguyên cho STT!")
-    exit()
-
-# Khởi tạo trình duyệt
-chrome_options = Options()
-chrome_options.add_argument(r"user-data-dir=C:\ZaloAutoProfile")
-chrome_options.add_argument("--start-maximized")
-
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-driver.get("https://chat.zalo.me")
-
-print("Đang khởi động... Chờ Zalo ổn định trong 15s")
-time.sleep(15)
-
-# Đọc file Excel
-try:
-    wb = openpyxl.load_workbook(EXCEL_PATH)
-    sheet = wb.active
-except Exception as e:
-    print(f"Lỗi file Excel: {e}")
-    driver.quit()
-    exit()
-
-# Hàm tô màu cả dòng 
-def to_mau_dong(row_index, color_fill):
-    for col in range(1, 9): 
-        sheet.cell(row=row_index, column=col).fill = color_fill
-
-print("-" * 30)
-so_luong_da_xu_ly = 0
-
-for row in range(2, sheet.max_row + 1):
-    # Lấy STT hiện tại từ cột A
-    stt_val = sheet.cell(row=row, column=1).value
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    profile_path = os.path.join(current_dir, "ZaloToolData")
     
-    if stt_val is None:
-        continue
+    if not os.path.exists(profile_path):
+        os.makedirs(profile_path)
+        print(f"Đã khởi tạo thư mục dữ liệu tại: {profile_path}")
+    
+    return profile_path
+
+def update_excel(sheet, row, col6, col7, color, path, wb):  #Cập nhật dữ liệu vào Excel
+    sheet.cell(row=row, column=6).value = col6
+    sheet.cell(row=row, column=7).value = col7
+    for col in range(1, 9):
+        sheet.cell(row=row, column=col).fill = color
+    wb.save(path)
+
+def check_blocked_status(driver):   #Kiểm tra các câu thông báo chặn của Zalo
+    keywords = ["không nhận tin nhắn", "người lạ", "không thể nhận"]
+    for word in keywords:
+        if driver.find_elements(By.XPATH, f"//*[contains(text(), '{word}')]"):
+            return True
+    return False
+
+def process_send(driver, phone):  #Xử lý logic gửi tin và trả về kết quả 
     try:
-        current_stt = int(stt_val)
-        if not (start_stt <= current_stt <= end_stt):
-            continue
-    except ValueError:
-        continue 
+        # click vào body để focus
+        driver.find_element(By.TAG_NAME, 'body').click()
+        time.sleep(1)
 
-    phone = sheet.cell(row=row, column=4).value # Cột D (SĐT)
-    status = sheet.cell(row=row, column=6).value 
-
-    # Bỏ qua nếu đã gửi thành công trước đó
-    if status == "Đã gửi" or not phone:
-        continue
-
-    str_phone = str(phone).strip()
-    print(f"\n[STT: {current_stt}] --> Đang xử lý số: {str_phone}")
-    so_luong_da_xu_ly += 1
-
-    try:
-        driver.execute_script("window.focus();")
-        # tìm
-        search_box = WebDriverWait(driver, 15).until(
+        search_box = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "contact-search-input"))
         )
         search_box.click()
         search_box.clear()
-        search_box.send_keys(str_phone)
-        time.sleep(3) 
-
+        search_box.send_keys(phone)
+        time.sleep(2)
         search_box.send_keys(Keys.ENTER)
         time.sleep(3)
 
-        # Kiểm tra tồn tại 
-        is_not_found = False
-        error_texts = ["chưa đăng ký", "Không tìm thấy", "không cho phép"]
-        for txt in error_texts:
-            if driver.find_elements(By.XPATH, f"//*[contains(text(), '{txt}')]"):
-                is_not_found = True
-                break
-
-        if is_not_found:
-            print(f"   => KHÔNG TÌM THẤY")
-            sheet.cell(row=row, column=6).value = "Không tìm thấy"
-            to_mau_dong(row, do_fill)
-            wb.save(EXCEL_PATH)
-            pyautogui.press('esc')
-            time.sleep(1)
-
-        else:
-            # Gửi tin nhắn
-            try:
-                btns = driver.find_elements(By.XPATH, "//div[contains(text(), 'Nhắn tin')] | //span[contains(text(), 'Nhắn tin')]")
-                if btns:
-                    btns[0].click()
-                    time.sleep(3)
-                
-                chat_box = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.ID, "richInput"))
-                )
-                
-                # Hàm đếm thông báo chặn để so sánh
-                def get_block_count():
-                    blocks = driver.find_elements(By.XPATH, "//*[contains(text(), 'chặn không nhận tin nhắn từ người lạ')]")
-                    return len([el for el in blocks if el.is_displayed()])
-
-                num_before = get_block_count()
-                chat_box.click()
-                time.sleep(1)
-
-                pyperclip.copy(MESSAGE_TEMPLATE)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(2) 
-                pyautogui.press('enter')
-                
-                time.sleep(4) 
-                num_after = get_block_count()
-                
-                if num_after > num_before:
-                    print("   => BỊ CHẶN")
-                    sheet.cell(row=row, column=6).value = "Chặn người lạ"
-                    to_mau_dong(row, do_fill)
-                    wb.save(EXCEL_PATH)
-                    pyautogui.press('esc')
-                else:
-                    print("   => THÀNH CÔNG")
-                    sheet.cell(row=row, column=6).value = "Đã gửi" 
-                    to_mau_dong(row, vang_fill)
-                    wb.save(EXCEL_PATH)
-
-            except TimeoutException:
-                print("   => BỊ CHẶN (Không hiện ô chat)")
-                sheet.cell(row=row, column=6).value = "Chặn người lạ"
-                to_mau_dong(row, do_fill)
-                wb.save(EXCEL_PATH)
+        # Không tìm thấy tài khoản
+        not_found_msgs = ["chưa đăng ký", "Không tìm thấy", "không cho phép"]
+        for msg in not_found_msgs:
+            if driver.find_elements(By.XPATH, f"//*[contains(text(), '{msg}')]"):
                 pyautogui.press('esc')
+                return 3
 
+        # Click nút Nhắn tin nếu có
+        btns = driver.find_elements(By.XPATH, "//div[contains(text(), 'Nhắn tin')] | //span[contains(text(), 'Nhắn tin')]")
+        if btns: btns[0].click()
+        time.sleep(2)
+
+        # Kiểm tra chặn trước khi gửi
+        if check_blocked_status(driver):
+            pyautogui.press('esc')
+            return 2
+
+        # Thực hiện gửi tin nhắn
+        pyperclip.copy(MESSAGE_TEMPLATE)
+        pyautogui.hotkey('ctrl', 'v')
+        time.sleep(1)
+        pyautogui.press('enter')
+        time.sleep(3)
+
+        # Kiểm tra lại lần nữa sau khi gửi vì Zalo có thể hiện thông báo sau khi nhấn Enter
+        if check_blocked_status(driver):
+            return 2
+
+        return 1
     except Exception as e:
-        print(f"   => LỖI: {e}")
-        sheet.cell(row=row, column=6).value = "Lỗi"
-        to_mau_dong(row, do_fill)
-        wb.save(EXCEL_PATH)
-        pyautogui.press('esc')
+        print(f"Lỗi: {e}")
+        return 0
 
-    # Nghỉ để tránh spam
-    if so_luong_da_xu_ly % 15 == 0:
-        print(f"\n[!] Nghỉ 5 phút sau đợt 15 số...")
-        time.sleep(300)
-    else:
-        wait_time = random.randint(20, 35)
-        print(f"Nghỉ {wait_time}s...")
-        time.sleep(wait_time)
+def main():
+    print("Bắt đầu chạy tool")
+    excel_path = input("Nhập đường dẫn file excel: ").strip().replace('"', '')
+    
+    try:
+        start_stt = int(input("Nhập STT bắt đầu (Cột A): "))
+        end_stt = int(input("Nhập STT kết thúc (Cột A): "))
+    except:
+        print("Lỗi: STT phải là số!")
+        return
 
-print("-" * 30)
-print(f"HOÀN TẤT TỪ STT {start_stt} ĐẾN {end_stt}!")
+    # Tự động lấy Profile
+    profile_path = setup_profile()
+
+    # Mở Excel
+    try:
+        wb = openpyxl.load_workbook(excel_path)
+        sheet = wb.active
+    except Exception as e:
+        print(f"Không mở được file Excel: {e}")
+        return
+
+    # Khởi tạo trình duyệt
+    options = Options()
+    options.add_argument(f"user-data-dir={profile_path}")
+    options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
+    driver.get("https://chat.zalo.me")
+    print("Nếu chưa đăng nhập, hãy quét mã QR ngay...")
+    time.sleep(25) # Đợi đăng nhập/tải trang
+
+    processed = 0
+    for row in range(2, sheet.max_row + 1):
+        stt_val = sheet.cell(row=row, column=1).value
+        try:
+            current_stt = int(stt_val)
+            if not (start_stt <= current_stt <= end_stt): continue
+        except: continue
+
+        phone = str(sheet.cell(row=row, column=4).value).strip()
+        if not phone or phone == "None": continue
+
+        print(f"[Đang xử lý STT {current_stt}: {phone}")
+        
+        result = process_send(driver, phone)
+
+        if result == 1:
+            print(" ->Thành công")
+            update_excel(sheet, row, "Đã gửi", "Đợi trả lời", VANG_FILL, excel_path, wb)
+        elif result == 2:
+            print(" ->Bị chặn người lạ")
+            update_excel(sheet, row, "Đã gửi", "Không nhận tin nhắn người lạ", DO_FILL, excel_path, wb)
+        elif result == 3:
+            print(" ->Không tìm thấy SĐT")
+            update_excel(sheet, row, "Không thể gửi", "Chặn người lạ tìm số", DO_FILL, excel_path, wb)
+
+        processed += 1
+        
+        # Nghỉ tránh spam 
+        if processed % 15 == 0:
+            print("Nghỉ 3 phút ")
+            time.sleep(180)
+        else:
+            delay = random.randint(20, 30)
+            print(f"Đợi {delay}s...")
+            time.sleep(delay)
+
+    print("Hoàn tất")
+    driver.quit()
+
+if __name__ == "__main__":
+    main()
