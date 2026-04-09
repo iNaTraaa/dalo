@@ -94,6 +94,8 @@ Thầy cô Khoa CNTT luôn sẵn sàng hỗ trợ em!"""
         for msg in not_found_msgs:
             if driver.find_elements(By.XPATH, f"//*[contains(text(), '{msg}')]"):
                 pyautogui.press('esc')
+                if msg=="không hợp lệ":
+                    return 5
                 return 3
 
         # Click nút Nhắn tin nếu có
@@ -190,7 +192,10 @@ def main():
         elif result == 3:
             print(" ->Không tìm thấy SĐT")
             update_excel(sheet, row, "Không thể gửi", "Chặn người lạ tìm số", DO_FILL, excel_path, wb)
-         
+        elif result == 5:
+            print("Sai SĐT")
+            update_excel(sheet, row, "Không thể gửi", "Sai số điện thoại", DO_FILL, excel_path, wb)
+            
         processed += 1
         
         # Nghỉ tránh spam 
