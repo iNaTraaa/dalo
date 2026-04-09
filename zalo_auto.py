@@ -4,6 +4,7 @@ import random
 import openpyxl
 import pyautogui
 import pyperclip
+import sys 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -100,6 +101,9 @@ def process_send(driver, phone):  #Xử lý logic gửi tin và trả về kết
         # Kiểm tra lại lần nữa sau khi gửi vì Zalo có thể hiện thông báo sau khi nhấn Enter
         if check_blocked_status(driver):
             return 2
+        # Kiểm tra coi có ban không
+        if driver.find_elements(By.XPATH, "//*[text()='Không thể nhận tin nhắn từ bạn.']"):
+            return 4
 
         return 1
     except Exception as e:
@@ -153,7 +157,14 @@ def main():
         
         result = process_send(driver, phone)
 
-        if result == 1:
+
+        if result == 4:
+            print("CẢNH BÁO: TÀI KHOẢN ĐANG BỊ ZALO BAN ")
+            # Cập nhật trạng thái lỗi vào Excel cho dòng hiện tại trước khi nghỉ
+            update_excel(sheet, row, "BỊ CHẶN", "Tài khoản bị Zalo Ban tính năng", DO_FILL, excel_path, wb)
+            driver.quit()
+            sys.exit() # Dừng toàn bộ chương trình
+        elif result == 1:
             print(" ->Thành công")
             update_excel(sheet, row, "Đã gửi", "Đợi trả lời", VANG_FILL, excel_path, wb)
         elif result == 2:
@@ -162,7 +173,7 @@ def main():
         elif result == 3:
             print(" ->Không tìm thấy SĐT")
             update_excel(sheet, row, "Không thể gửi", "Chặn người lạ tìm số", DO_FILL, excel_path, wb)
-
+         
         processed += 1
         
         # Nghỉ tránh spam 
