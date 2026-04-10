@@ -119,7 +119,7 @@ Thầy cô Khoa CNTT luôn sẵn sàng hỗ trợ em!"""
         if check_blocked_status(driver):
             return 2
         # Kiểm tra coi có ban không
-        if driver.find_elements(By.XPATH, "//*[text()='Không thể nhận tin nhắn từ bạn.']"):
+        if driver.find_elements(By.XPATH, "//*[text()='Không thể nhận tin nhắn từ bạn.']") || driver.find_elements(By.XPATH,"//*[text()='Zalo: Hiện tại bạn không thể nhắn tin cho người lạ.']"):
             return 4
 
         return 1
